@@ -131,7 +131,7 @@
 
           meta = {
             description = "Zellij plugin for toggling configured floating TUI popups";
-            homepage = "https://github.com/luccahuguet/yazelix-zellij-popup";
+            homepage = "https://github.com/Yazelix/zellij-popup";
             license = pkgs.lib.licenses.asl20;
           };
         };

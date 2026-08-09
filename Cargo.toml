@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Zellij plugin for toggling configured floating TUI popups"
-repository = "https://github.com/luccahuguet/yazelix-zellij-popup"
+repository = "https://github.com/Yazelix/zellij-popup"
 
 [[bin]]
 name = "yzpp"
