@@ -573,7 +573,6 @@ fn pane_matches_identity<Id>(
     identity: TransientPaneIdentityView<'_>,
 ) -> bool {
     !pane.is_plugin
-        && !pane.exited
         && (pane.title.trim() == identity.pane_title
             || identity.command_marker.is_some_and(|command_marker| {
                 pane.terminal_command
@@ -1726,6 +1725,16 @@ mod tests {
         let focused = [transient_pane(11, "other", Some("gitui"), true)];
         let unfocused = [transient_pane(12, "other", Some("gitui"), false)];
         let suppressed = [suppressed_transient_pane(13, "other", Some("gitui"))];
+        let focused_exited = [TransientPaneSnapshot {
+            pane_id: 14,
+            exited: true,
+            ..focused[0]
+        }];
+        let unfocused_exited = [TransientPaneSnapshot {
+            pane_id: 15,
+            exited: true,
+            ..unfocused[0]
+        }];
 
         assert_eq!(
             resolve_transient_toggle_plan_by_identity(&focused, request.spec.identity(), true),
@@ -1743,6 +1752,22 @@ mod tests {
         assert_eq!(
             resolve_transient_toggle_plan_by_identity(&suppressed, request.spec.identity(), false),
             TransientTogglePlan::Focus(13)
+        );
+        assert_eq!(
+            resolve_transient_toggle_plan_by_identity(
+                &focused_exited,
+                request.spec.identity(),
+                true
+            ),
+            TransientTogglePlan::ToggleFocused(14)
+        );
+        assert_eq!(
+            resolve_transient_toggle_plan_by_identity(
+                &unfocused_exited,
+                request.spec.identity(),
+                true
+            ),
+            TransientTogglePlan::Focus(15)
         );
         assert_eq!(
             resolve_transient_toggle_plan_by_identity::<i32>(&[], request.spec.identity(), false),

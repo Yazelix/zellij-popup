@@ -48,6 +48,7 @@ struct TerminalPane {
     pane_id: PaneId,
     title: String,
     terminal_command: Option<String>,
+    exited: bool,
     is_focused: bool,
     is_floating: bool,
     is_suppressed: bool,
@@ -71,6 +72,7 @@ impl ZellijPlugin for State {
             EventType::TabUpdate,
             EventType::PaneUpdate,
             EventType::PermissionRequestResult,
+            EventType::PluginConfigurationChanged,
         ]);
     }
 
@@ -97,6 +99,9 @@ impl ZellijPlugin for State {
             }
             Event::PermissionRequestResult(status) => {
                 self.permissions_granted = status == PermissionStatus::Granted;
+            }
+            Event::PluginConfigurationChanged(configuration) => {
+                self.popup_specs = ConfiguredPopupSpecs::from_configuration(&configuration);
             }
             _ => {}
         }
@@ -202,8 +207,11 @@ impl State {
                             Some(pane_id),
                             &fallback_cwd,
                         );
-                        match request.spec.toggle_close_behavior {
-                            TransientPopupToggleCloseBehavior::Close => {
+                        let exited = snapshots
+                            .iter()
+                            .any(|pane| pane.pane_id == pane_id && pane.exited);
+                        match (exited, request.spec.toggle_close_behavior) {
+                            (true, _) | (_, TransientPopupToggleCloseBehavior::Close) => {
                                 self.close_popup(
                                     pipe_message,
                                     pane_id,
@@ -211,7 +219,7 @@ impl State {
                                     &request_cwd,
                                 );
                             }
-                            TransientPopupToggleCloseBehavior::Hide => {
+                            (false, TransientPopupToggleCloseBehavior::Hide) => {
                                 self.hide_popup(
                                     pipe_message,
                                     pane_id,
@@ -507,7 +515,7 @@ impl TerminalPane {
             title: self.title.as_str(),
             terminal_command: self.terminal_command.as_deref(),
             is_plugin: false,
-            exited: false,
+            exited: self.exited,
             is_floating: self.is_floating,
             is_suppressed: self.is_suppressed,
             is_focused: self.is_focused,
@@ -522,11 +530,12 @@ fn build_terminal_panes_by_tab(pane_manifest: &PaneManifest) -> HashMap<usize, V
         .map(|(tab_position, panes)| {
             let terminal_panes = panes
                 .iter()
-                .filter(|pane| !pane.is_plugin && !pane.exited)
+                .filter(|pane| !pane.is_plugin)
                 .map(|pane| TerminalPane {
                     pane_id: PaneId::Terminal(pane.id),
                     title: pane.title.clone(),
                     terminal_command: pane.terminal_command.clone(),
+                    exited: pane.exited,
                     is_focused: pane.is_focused,
                     is_floating: pane.is_floating,
                     is_suppressed: pane.is_suppressed,
