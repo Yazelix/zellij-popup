@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Build and verify
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)"
+          test "$GITHUB_REF_NAME" = "v$version"
+          rustup target add wasm32-wasip1
+          cargo fmt --all -- --check
+          cargo test --locked --lib
+          cargo build --locked --target wasm32-wasip1 --profile release
+          mkdir dist
+          cp target/wasm32-wasip1/release/yzpp.wasm dist/
+          cd dist
+          sha256sum yzpp.wasm > yzpp.wasm.sha256
+      - name: Publish release
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          dist/yzpp.wasm dist/yzpp.wasm.sha256
+          --verify-tag --generate-notes --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
