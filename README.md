@@ -11,7 +11,11 @@ Download `yzpp.wasm` and `yzpp.wasm.sha256` from the
 them in the same directory, and verify the download:
 
 ```bash
+# Linux
 sha256sum --check yzpp.wasm.sha256
+
+# macOS
+shasum --algorithm 256 --check yzpp.wasm.sha256
 ```
 
 To build without Nix, install the WASI target and compile the plugin:
