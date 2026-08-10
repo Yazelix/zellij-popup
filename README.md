@@ -6,7 +6,28 @@ It gives plain Zellij users the popup behavior that Yazelix uses for tools like 
 
 ## Install
 
-Build the plugin:
+Download `yzpp.wasm` and `yzpp.wasm.sha256` from the
+[latest release](https://github.com/Yazelix/zellij-popup/releases/latest), place
+them in the same directory, and verify the download:
+
+```bash
+# Linux
+sha256sum --check yzpp.wasm.sha256
+
+# macOS
+shasum --algorithm 256 --check yzpp.wasm.sha256
+```
+
+To build without Nix, install the WASI target and compile the plugin:
+
+```bash
+rustup target add wasm32-wasip1
+cargo build --locked --target wasm32-wasip1 --profile release
+```
+
+The artifact is `target/wasm32-wasip1/release/yzpp.wasm`.
+
+To build the Nix package:
 
 ```bash
 nix build .#yazelix-zellij-popup
