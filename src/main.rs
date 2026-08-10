@@ -71,6 +71,7 @@ impl ZellijPlugin for State {
             EventType::TabUpdate,
             EventType::PaneUpdate,
             EventType::PermissionRequestResult,
+            EventType::PluginConfigurationChanged,
         ]);
     }
 
@@ -97,6 +98,9 @@ impl ZellijPlugin for State {
             }
             Event::PermissionRequestResult(status) => {
                 self.permissions_granted = status == PermissionStatus::Granted;
+            }
+            Event::PluginConfigurationChanged(configuration) => {
+                self.popup_specs = ConfiguredPopupSpecs::from_configuration(&configuration);
             }
             _ => {}
         }
