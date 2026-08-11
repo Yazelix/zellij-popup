@@ -118,11 +118,13 @@ Optional:
 - `side_margin`, the exact terminal-cell inset from each horizontal edge, defaulting to `popup_defaults.side_margin` or `0`
 - `vertical_margin`, the exact terminal-cell inset from each vertical edge, defaulting to `popup_defaults.vertical_margin` or `0`
 
-Margins define the popup size from the current viewport. A side margin of `2`
-uses two terminal cells on both the left and right; a vertical margin of `1`
-uses one row above and below. Zero margins fill the viewport. Oversized margins
-are clamped so at least one row and column remain visible. Commands are argv,
-not shell strings.
+In `yzpp`, a margin is empty space outside the popup pane, between the viewport
+edge and the popup border. It is not padding between the popup border and the
+application content. Margins define the popup size from the current viewport:
+a side margin of `2` uses two terminal cells on both the left and right, while a
+vertical margin of `1` uses one row above and below. Zero margins fill the
+viewport. Oversized margins are clamped so at least one row and column remain
+visible. Commands are argv, not shell strings.
 
 Use `popup_defaults` to share margins and lifecycle hooks across configured popups:
 
