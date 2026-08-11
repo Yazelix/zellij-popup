@@ -366,7 +366,7 @@ impl State {
         };
         let pane_id = open_command_pane_floating(
             command_to_run,
-            floating_coordinates(launch_plan.geometry, Some(viewport)),
+            floating_coordinates(launch_plan.geometry, viewport),
             BTreeMap::new(),
         );
 
@@ -416,11 +416,7 @@ impl State {
         }
 
         show_pane_with_id(pane_id, true, true);
-        if let Some(coordinates) = request
-            .spec
-            .geometry()
-            .and_then(|geometry| floating_coordinates(geometry, Some(viewport)))
-        {
+        if let Some(coordinates) = floating_coordinates(request.spec.geometry(), viewport) {
             change_floating_panes_coordinates(vec![(pane_id, coordinates)]);
         }
         self.respond(pipe_message, RESULT_FOCUSED);
