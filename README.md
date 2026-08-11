@@ -58,8 +58,6 @@ plugins {
             pane_title "gitui_popup"
             command_marker "gitui"
             cwd "."
-            width_percent 90
-            height_percent 85
         }
     }
 }
@@ -100,8 +98,6 @@ popup {
     pane_title "gitui_popup"
     command_marker "gitui"
     cwd "."
-    width_percent 90
-    height_percent 85
 }
 ```
 
@@ -119,12 +115,14 @@ Optional:
 - `on_close`, an optional command hook run when `yzpp` closes the popup through `toggle` or `close`
 - `on_hide`, an optional command hook run when `yzpp` hides the popup through focused `toggle` or popup displacement
 - `toggle_close_behavior`, either `close` or `hide`, defaulting to `close`
-- `width_percent`, defaulting to `90`
-- `height_percent`, defaulting to `85`
-- `side_margin`, defaulting to `popup_defaults.side_margin` or `0`
-- `vertical_margin`, defaulting to `popup_defaults.vertical_margin` or `0`
+- `side_margin`, the exact terminal-cell inset from each horizontal edge, defaulting to `popup_defaults.side_margin` or `0`
+- `vertical_margin`, the exact terminal-cell inset from each vertical edge, defaulting to `popup_defaults.vertical_margin` or `0`
 
-Width and height must be integers from `1` through `100`. Commands are argv, not shell strings.
+Margins define the popup size from the current viewport. A side margin of `2`
+uses two terminal cells on both the left and right; a vertical margin of `1`
+uses one row above and below. Zero margins fill the viewport. Oversized margins
+are clamped so at least one row and column remain visible. Commands are argv,
+not shell strings.
 
 Use `popup_defaults` to share margins and lifecycle hooks across configured popups:
 
@@ -157,7 +155,7 @@ popups {
 }
 ```
 
-Per-popup `side_margin`, `vertical_margin`, `on_close`, and `on_hide` override the shared defaults
+Per-popup `side_margin`, `vertical_margin`, `on_close`, and `on_hide` override the shared defaults.
 
 Hooks are also argv, not shell strings:
 
@@ -208,15 +206,15 @@ popups {
     gitui {
         command "gitui"
         pane_title "gitui_popup"
-        width_percent 90
-        height_percent 85
+        side_margin 2
+        vertical_margin 1
     }
 
     lazygit {
         command "lazygit"
         pane_title "lazygit_popup"
-        width_percent 92
-        height_percent 88
+        side_margin 1
+        vertical_margin 0
     }
 }
 ```
@@ -235,7 +233,7 @@ Generated integrations may still send the raw JSON request shape through `name "
 ```kdl
 MessagePlugin "yzpp" {
     name "transient_popup"
-    payload "{\"action\":\"toggle\",\"spec\":{\"id\":\"gitui\",\"pane_title\":\"gitui_popup\",\"command_marker\":\"gitui\",\"command\":[\"gitui\"],\"cwd\":\".\",\"width_percent\":90,\"height_percent\":85},\"args\":[]}"
+    payload "{\"action\":\"toggle\",\"spec\":{\"id\":\"gitui\",\"pane_title\":\"gitui_popup\",\"command_marker\":\"gitui\",\"command\":[\"gitui\"],\"cwd\":\".\",\"side_margin\":1,\"vertical_margin\":0},\"args\":[]}"
 }
 ```
 

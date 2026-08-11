@@ -9,8 +9,6 @@ const DEFAULT_SPEC_ID: &str = "default";
 const DEFAULT_POPUP_CONFIG_KEY: &str = "popup";
 const POPUP_DEFAULTS_CONFIG_KEY: &str = "popup_defaults";
 const NAMED_POPUPS_CONFIG_KEY: &str = "popups";
-const DEFAULT_WIDTH_PERCENT: usize = 90;
-const DEFAULT_HEIGHT_PERCENT: usize = 85;
 const DEFAULT_SIDE_MARGIN: usize = 0;
 const DEFAULT_VERTICAL_MARGIN: usize = 0;
 
@@ -51,8 +49,6 @@ pub struct TransientPopupSpec {
     pub on_hide: Option<TransientPopupCommandHook>,
     #[serde(default)]
     pub toggle_close_behavior: TransientPopupToggleCloseBehavior,
-    pub width_percent: usize,
-    pub height_percent: usize,
     #[serde(default)]
     pub side_margin: usize,
     #[serde(default)]
@@ -143,8 +139,6 @@ pub enum TransientTogglePlan<Id> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TransientPaneGeometry {
-    pub width_percent: usize,
-    pub height_percent: usize,
     pub side_margin: usize,
     pub vertical_margin: usize,
 }
@@ -183,8 +177,6 @@ struct PopupSpecDraft {
     on_close: Option<PopupCommandHookDraft>,
     on_hide: Option<PopupCommandHookDraft>,
     toggle_close_behavior: Option<String>,
-    width_percent: Option<String>,
-    height_percent: Option<String>,
     side_margin: Option<String>,
     vertical_margin: Option<String>,
     invalid: bool,
@@ -387,24 +379,15 @@ impl TransientPopupSpec {
         }
     }
 
-    pub fn geometry(&self) -> Option<TransientPaneGeometry> {
-        if !(1..=100).contains(&self.width_percent) || !(1..=100).contains(&self.height_percent) {
-            return None;
-        }
-
-        Some(TransientPaneGeometry {
-            width_percent: self.width_percent,
-            height_percent: self.height_percent,
+    pub fn geometry(&self) -> TransientPaneGeometry {
+        TransientPaneGeometry {
             side_margin: self.side_margin,
             vertical_margin: self.vertical_margin,
-        })
+        }
     }
 
     fn is_launchable(&self) -> bool {
-        if self.id.trim().is_empty()
-            || self.pane_title.trim().is_empty()
-            || self.geometry().is_none()
-        {
+        if self.id.trim().is_empty() || self.pane_title.trim().is_empty() {
             return false;
         }
 
@@ -492,7 +475,7 @@ impl TransientPopupPipeRequest {
             args,
             requested_cwd: self.cwd.clone().or_else(|| self.spec.cwd.clone()),
             fallback_cwd: fallback_cwd.to_string(),
-            geometry: self.spec.geometry()?,
+            geometry: self.spec.geometry(),
         })
     }
 }
@@ -662,8 +645,6 @@ fn build_configured_spec(
             None => defaults.on_hide.clone(),
         },
         toggle_close_behavior: parse_toggle_close_behavior(draft.toggle_close_behavior)?,
-        width_percent: parse_percent(draft.width_percent, DEFAULT_WIDTH_PERCENT)?,
-        height_percent: parse_percent(draft.height_percent, DEFAULT_HEIGHT_PERCENT)?,
         side_margin: parse_margin(draft.side_margin, defaults.side_margin)?,
         vertical_margin: parse_margin(draft.vertical_margin, defaults.vertical_margin)?,
     })
@@ -858,8 +839,6 @@ fn apply_config_field(draft: &mut PopupSpecDraft, field: PopupConfigField, value
         PopupConfigField::CommandMarker => draft.command_marker = Some(value),
         PopupConfigField::Cwd => draft.cwd = Some(value),
         PopupConfigField::ToggleCloseBehavior => draft.toggle_close_behavior = Some(value),
-        PopupConfigField::WidthPercent => draft.width_percent = Some(value),
-        PopupConfigField::HeightPercent => draft.height_percent = Some(value),
         PopupConfigField::SideMargin => draft.side_margin = Some(value),
         PopupConfigField::VerticalMargin => draft.vertical_margin = Some(value),
         PopupConfigField::Arg(index) => {
@@ -923,16 +902,6 @@ fn parse_bool(value: Option<String>, default: bool) -> Option<bool> {
     }
 }
 
-fn parse_percent(value: Option<String>, default: usize) -> Option<usize> {
-    match value {
-        Some(value) => {
-            let parsed = value.trim().parse::<usize>().ok()?;
-            (1..=100).contains(&parsed).then_some(parsed)
-        }
-        None => Some(default),
-    }
-}
-
 fn parse_margin(value: Option<String>, default: usize) -> Option<usize> {
     match value {
         Some(value) => value.trim().parse::<usize>().ok(),
@@ -948,8 +917,6 @@ enum PopupConfigField {
     CommandMarker,
     Cwd,
     ToggleCloseBehavior,
-    WidthPercent,
-    HeightPercent,
     SideMargin,
     VerticalMargin,
     Arg(usize),
@@ -977,10 +944,6 @@ fn popup_config_field(key: &str) -> Option<PopupConfigField> {
         Some(PopupConfigField::Cwd)
     } else if key == "toggle_close_behavior" {
         Some(PopupConfigField::ToggleCloseBehavior)
-    } else if key == "width_percent" {
-        Some(PopupConfigField::WidthPercent)
-    } else if key == "height_percent" {
-        Some(PopupConfigField::HeightPercent)
     } else if key == "side_margin" {
         Some(PopupConfigField::SideMargin)
     } else if key == "vertical_margin" {
@@ -1082,8 +1045,6 @@ mod tests {
                     pane_title "gitui_popup"
                     preserve_terminal_title true
                     cwd "."
-                    width_percent 90
-                    height_percent 85
                     side_margin 2
                     vertical_margin 1
                 "#,
@@ -1104,12 +1065,10 @@ mod tests {
         );
         assert_eq!(
             request.spec.geometry(),
-            Some(TransientPaneGeometry {
-                width_percent: 90,
-                height_percent: 85,
+            TransientPaneGeometry {
                 side_margin: 2,
                 vertical_margin: 1,
-            })
+            }
         );
         assert_eq!(
             request.launch_plan("/fallback").expect("launch plan").cwd,
@@ -1158,12 +1117,10 @@ mod tests {
 
             assert_eq!(
                 request.spec.geometry(),
-                Some(TransientPaneGeometry {
-                    width_percent: 90,
-                    height_percent: 85,
+                TransientPaneGeometry {
                     side_margin: 1,
                     vertical_margin: 0,
-                })
+                }
             );
         }
     }
@@ -1197,12 +1154,10 @@ mod tests {
 
         assert_eq!(
             request.spec.geometry(),
-            Some(TransientPaneGeometry {
-                width_percent: 90,
-                height_percent: 85,
+            TransientPaneGeometry {
                 side_margin: 3,
                 vertical_margin: 2,
-            })
+            }
         );
     }
 
@@ -1585,18 +1540,18 @@ mod tests {
         assert_eq!(request.action, TransientPopupAction::Open);
         assert_eq!(request.spec.id, "lazygit");
         assert_eq!(request.spec.pane_title, "lazygit_popup");
-        assert_eq!(request.spec.width_percent, 90);
-        assert_eq!(request.spec.height_percent, 85);
+        assert_eq!(request.spec.side_margin, 0);
+        assert_eq!(request.spec.vertical_margin, 0);
     }
 
     #[test]
-    fn configured_spec_returns_invalid_config_for_bad_percent() {
+    fn configured_spec_rejects_removed_percentage_fields() {
         let specs = ConfiguredPopupSpecs::from_configuration(&config(&[(
             "popups",
             r#"
                 gitui {
                     command "gitui"
-                    width_percent 101
+                    width_percent 90
                 }
             "#,
         )]));
@@ -1681,9 +1636,7 @@ mod tests {
                 "on_hide": {
                     "command": ["hook", "hide"]
                 },
-                "toggle_close_behavior": "hide",
-                "width_percent": 90,
-                "height_percent": 85
+                "toggle_close_behavior": "hide"
             }
         }"#;
 
@@ -1706,6 +1659,25 @@ mod tests {
                 .expect("hide hook plan")
                 .command,
             vec!["hook", "hide"]
+        );
+    }
+
+    #[test]
+    fn raw_json_request_rejects_removed_percentage_fields() {
+        let specs = ConfiguredPopupSpecs::default();
+        let payload = r#"{
+            "action": "open",
+            "spec": {
+                "id": "gitui",
+                "pane_title": "gitui_popup",
+                "command": ["gitui"],
+                "width_percent": 90
+            }
+        }"#;
+
+        assert_eq!(
+            specs.request_from_message("transient_popup", Some(payload)),
+            Err(PopupMessageRequestError::InvalidPayload)
         );
     }
 

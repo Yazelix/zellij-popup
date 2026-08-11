@@ -13,8 +13,6 @@ plugins {
             pane_title "gitui_popup"
             command_marker "gitui"
             cwd "."
-            width_percent 90
-            height_percent 85
         }
     }
 }
