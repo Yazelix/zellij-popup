@@ -4,6 +4,8 @@
 plugins {
     yzpp location="__YZPP_WASM__" {
         popup_defaults {
+            width_percent 90
+            height_percent 85
             side_margin 1
             vertical_margin 0
         }
@@ -13,8 +15,6 @@ plugins {
             pane_title "gitui_popup"
             command_marker "gitui"
             cwd "."
-            width_percent 90
-            height_percent 85
         }
     }
 }

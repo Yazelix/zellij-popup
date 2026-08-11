@@ -119,17 +119,19 @@ Optional:
 - `on_close`, an optional command hook run when `yzpp` closes the popup through `toggle` or `close`
 - `on_hide`, an optional command hook run when `yzpp` hides the popup through focused `toggle` or popup displacement
 - `toggle_close_behavior`, either `close` or `hide`, defaulting to `close`
-- `width_percent`, defaulting to `90`
-- `height_percent`, defaulting to `85`
+- `width_percent`, defaulting to `popup_defaults.width_percent` or `90`
+- `height_percent`, defaulting to `popup_defaults.height_percent` or `85`
 - `side_margin`, defaulting to `popup_defaults.side_margin` or `0`
 - `vertical_margin`, defaulting to `popup_defaults.vertical_margin` or `0`
 
 Width and height must be integers from `1` through `100`. Commands are argv, not shell strings.
 
-Use `popup_defaults` to share margins and lifecycle hooks across configured popups:
+Use `popup_defaults` to share geometry and lifecycle hooks across configured popups:
 
 ```kdl
 popup_defaults {
+    width_percent 90
+    height_percent 85
     side_margin 1
     vertical_margin 0
 
@@ -157,7 +159,7 @@ popups {
 }
 ```
 
-Per-popup `side_margin`, `vertical_margin`, `on_close`, and `on_hide` override the shared defaults
+Per-popup geometry fields, `on_close`, and `on_hide` override the shared defaults.
 
 Hooks are also argv, not shell strings:
 

@@ -200,6 +200,8 @@ struct PopupCommandHookDraft {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PopupSpecDefaults {
+    width_percent: usize,
+    height_percent: usize,
     side_margin: usize,
     vertical_margin: usize,
     on_close: Option<TransientPopupCommandHook>,
@@ -210,6 +212,8 @@ struct PopupSpecDefaults {
 impl Default for PopupSpecDefaults {
     fn default() -> Self {
         Self {
+            width_percent: DEFAULT_WIDTH_PERCENT,
+            height_percent: DEFAULT_HEIGHT_PERCENT,
             side_margin: DEFAULT_SIDE_MARGIN,
             vertical_margin: DEFAULT_VERTICAL_MARGIN,
             on_close: None,
@@ -662,8 +666,8 @@ fn build_configured_spec(
             None => defaults.on_hide.clone(),
         },
         toggle_close_behavior: parse_toggle_close_behavior(draft.toggle_close_behavior)?,
-        width_percent: parse_percent(draft.width_percent, DEFAULT_WIDTH_PERCENT)?,
-        height_percent: parse_percent(draft.height_percent, DEFAULT_HEIGHT_PERCENT)?,
+        width_percent: parse_percent(draft.width_percent, defaults.width_percent)?,
+        height_percent: parse_percent(draft.height_percent, defaults.height_percent)?,
         side_margin: parse_margin(draft.side_margin, defaults.side_margin)?,
         vertical_margin: parse_margin(draft.vertical_margin, defaults.vertical_margin)?,
     })
@@ -754,6 +758,14 @@ fn parse_popup_defaults(raw: &str) -> PopupSpecDefaults {
             continue;
         };
         match field_name {
+            "width_percent" => match parse_percent(Some(value), DEFAULT_WIDTH_PERCENT) {
+                Some(width_percent) => defaults.width_percent = width_percent,
+                None => defaults.invalid = true,
+            },
+            "height_percent" => match parse_percent(Some(value), DEFAULT_HEIGHT_PERCENT) {
+                Some(height_percent) => defaults.height_percent = height_percent,
+                None => defaults.invalid = true,
+            },
             "side_margin" => match parse_margin(Some(value), DEFAULT_SIDE_MARGIN) {
                 Some(side_margin) => defaults.side_margin = side_margin,
                 None => defaults.invalid = true,
@@ -1129,11 +1141,13 @@ mod tests {
 
     #[test]
     // Defends: plugin-level geometry defaults apply to configured popup specs.
-    fn popup_defaults_apply_margins_to_named_popups() {
+    fn popup_defaults_apply_geometry_to_named_popups() {
         let specs = ConfiguredPopupSpecs::from_configuration(&config(&[
             (
                 "popup_defaults",
                 r#"
+                    width_percent 80
+                    height_percent 75
                     side_margin 1
                     vertical_margin 0
                 "#,
@@ -1159,8 +1173,8 @@ mod tests {
             assert_eq!(
                 request.spec.geometry(),
                 Some(TransientPaneGeometry {
-                    width_percent: 90,
-                    height_percent: 85,
+                    width_percent: 80,
+                    height_percent: 75,
                     side_margin: 1,
                     vertical_margin: 0,
                 })
@@ -1170,11 +1184,13 @@ mod tests {
 
     #[test]
     // Defends: per-popup geometry fields override plugin-level defaults.
-    fn popup_defaults_allow_per_popup_margin_overrides() {
+    fn popup_defaults_allow_per_popup_geometry_overrides() {
         let specs = ConfiguredPopupSpecs::from_configuration(&config(&[
             (
                 "popup_defaults",
                 r#"
+                    width_percent 80
+                    height_percent 75
                     side_margin 1
                     vertical_margin 0
                 "#,
@@ -1184,6 +1200,8 @@ mod tests {
                 r#"
                     gitui {
                         command "gitui"
+                        width_percent 70
+                        height_percent 65
                         side_margin 3
                         vertical_margin 2
                     }
@@ -1198,8 +1216,8 @@ mod tests {
         assert_eq!(
             request.spec.geometry(),
             Some(TransientPaneGeometry {
-                width_percent: 90,
-                height_percent: 85,
+                width_percent: 70,
+                height_percent: 65,
                 side_margin: 3,
                 vertical_margin: 2,
             })
@@ -1611,30 +1629,27 @@ mod tests {
 
     #[test]
     // Defends: invalid plugin-level defaults fail visibly instead of being ignored.
-    fn popup_defaults_return_invalid_config_for_bad_margin() {
-        let specs = ConfiguredPopupSpecs::from_configuration(&config(&[
-            (
-                "popup_defaults",
-                r#"
-                    side_margin "wide"
-                "#,
-            ),
-            (
-                "popups",
-                r#"
-                    gitui {
-                        command "gitui"
-                    }
-                "#,
-            ),
-        ]));
+    fn popup_defaults_return_invalid_config_for_bad_geometry() {
+        for popup_defaults in [r#"side_margin "wide""#, "width_percent 101"] {
+            let specs = ConfiguredPopupSpecs::from_configuration(&config(&[
+                ("popup_defaults", popup_defaults),
+                (
+                    "popups",
+                    r#"
+                        gitui {
+                            command "gitui"
+                        }
+                    "#,
+                ),
+            ]));
 
-        assert_eq!(
-            specs.request_from_message("toggle", Some("gitui")),
-            Err(PopupMessageRequestError::InvalidConfiguredSpec(
-                "gitui".into()
-            ))
-        );
+            assert_eq!(
+                specs.request_from_message("toggle", Some("gitui")),
+                Err(PopupMessageRequestError::InvalidConfiguredSpec(
+                    "gitui".into()
+                ))
+            );
+        }
     }
 
     #[test]
