@@ -579,8 +579,8 @@ pub fn resolve_transient_toggle_plan_by_identity<Id: Copy>(
 }
 
 /// Popups whose cwd must match should restart when their remembered launch cwd differs
-/// from the effective cwd of a fresh launch. The live process cwd is a compatibility
-/// fallback for panes opened before launch tracking was available.
+/// from the effective cwd of a fresh launch. Without launch state, a live process below
+/// the effective cwd remains reusable.
 pub fn should_restart_popup_for_cwd(
     cwd_must_match: bool,
     launch_cwd: Option<&str>,
@@ -590,16 +590,18 @@ pub fn should_restart_popup_for_cwd(
     if !cwd_must_match {
         return false;
     }
-    let Some(popup_cwd) = launch_cwd
-        .or(process_cwd)
+    let effective_cwd = effective_cwd.trim();
+    if effective_cwd.is_empty() {
+        return false;
+    }
+    let effective_cwd = Path::new(effective_cwd);
+    if let Some(launch_cwd) = launch_cwd.map(str::trim).filter(|cwd| !cwd.is_empty()) {
+        return Path::new(launch_cwd) != effective_cwd;
+    }
+    process_cwd
         .map(str::trim)
         .filter(|cwd| !cwd.is_empty())
-    else {
-        return false;
-    };
-    let effective_cwd = effective_cwd.trim();
-    !effective_cwd.is_empty()
-        && popup_cwd.trim_end_matches('/') != effective_cwd.trim_end_matches('/')
+        .is_some_and(|cwd| !Path::new(cwd).starts_with(effective_cwd))
 }
 
 fn parse_raw_request(
@@ -1765,8 +1767,16 @@ mod tests {
             "launch cwd mismatch restarts the hidden keep-alive pane"
         );
         assert!(
+            !should_restart_popup_for_cwd(true, None, Some("/repo/subdir"), "/repo"),
+            "missing launch state reuses navigation below the requested root"
+        );
+        assert!(
             should_restart_popup_for_cwd(true, None, Some("/old"), "/repo"),
             "live process cwd remains the compatibility fallback"
+        );
+        assert!(
+            should_restart_popup_for_cwd(true, None, Some("/repository"), "/repo"),
+            "path components prevent sibling prefixes from being reused"
         );
         assert!(
             !should_restart_popup_for_cwd(true, None, None, "/repo"),
