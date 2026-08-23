@@ -115,7 +115,7 @@ Optional:
 - `on_close`, an optional command hook run when `yzpp` closes the popup through `toggle` or `close`
 - `on_hide`, an optional command hook run when `yzpp` hides the popup through focused `toggle` or popup displacement
 - `toggle_close_behavior`, either `close` or `hide`, defaulting to `close`
-- `preserve_on_cwd_change`, defaulting to `false`; when `true`, ordinary focus and toggle requests reuse the live process even if their requested cwd changes
+- `preserve_on_cwd_change`, defaulting to `false`; when `true`, showing or focusing a live popup skips cwd-based replacement
 - `side_margin`, the exact terminal-cell inset from each horizontal edge, defaulting to `popup_defaults.side_margin` or `0`
 - `vertical_margin`, the exact terminal-cell inset from each vertical edge, defaulting to `popup_defaults.vertical_margin` or `0`
 
@@ -195,7 +195,7 @@ popup {
 }
 ```
 
-With `hide`, pressing the toggle key while the popup is focused and the floating layer is visible, replacing it with another configured popup, or sending the explicit `hide` action hides that pane without killing the popup process and runs `on_hide`. Pressing the toggle key again shows and focuses the existing pane, including when Zellij hid the floating layer while moving focus to a tiled pane. By default, a changed requested cwd closes the stale pane (and runs `on_close` if set) before opening a fresh popup there. `preserve_on_cwd_change true` keeps the same process instead; use the explicit `replace` action when it should restart at a new target. The explicit `close` action still closes the pane and runs `on_close`.
+With `hide`, pressing the toggle key while the popup is focused and the floating layer is visible, replacing it with another configured popup, or sending the explicit `hide` action hides that pane without killing the popup process and runs `on_hide`. Pressing the toggle key again shows and focuses the existing pane, including when Zellij hid the floating layer while moving focus to a tiled pane. By default, `yzpp` checks cwd staleness when showing a suppressed popup or handling a runtime cwd override. `preserve_on_cwd_change true` skips that check; use the explicit `replace` action when the process should restart at a new target. The explicit `close` action still closes the pane and runs `on_close`.
 
 Toggling a focused popup off, explicitly hiding it, or explicitly closing it also hides the current
 tab's floating layer. This returns focus to the tiled workspace instead of
