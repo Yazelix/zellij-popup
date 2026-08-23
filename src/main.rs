@@ -395,24 +395,26 @@ impl State {
         request_cwd: &str,
         viewport: PopupViewport,
     ) {
-        let process_cwd = get_pane_cwd(pane_id)
-            .ok()
-            .map(|cwd| cwd.display().to_string());
-        if should_restart_popup_for_cwd(
-            is_suppressed || request.cwd.is_some(),
-            self.popup_launch_cwds.get(&pane_id).map(String::as_str),
-            process_cwd.as_deref(),
-            request_cwd,
-        ) {
-            self.replace_popup(
-                pipe_message,
-                request,
-                pane_id,
-                fallback_cwd,
+        if !request.spec.preserve_on_cwd_change {
+            let process_cwd = get_pane_cwd(pane_id)
+                .ok()
+                .map(|cwd| cwd.display().to_string());
+            if should_restart_popup_for_cwd(
+                is_suppressed || request.cwd.is_some(),
+                self.popup_launch_cwds.get(&pane_id).map(String::as_str),
+                process_cwd.as_deref(),
                 request_cwd,
-                viewport,
-            );
-            return;
+            ) {
+                self.replace_popup(
+                    pipe_message,
+                    request,
+                    pane_id,
+                    fallback_cwd,
+                    request_cwd,
+                    viewport,
+                );
+                return;
+            }
         }
 
         show_pane_with_id(pane_id, true, true);

@@ -50,6 +50,8 @@ pub struct TransientPopupSpec {
     #[serde(default)]
     pub toggle_close_behavior: TransientPopupToggleCloseBehavior,
     #[serde(default)]
+    pub preserve_on_cwd_change: bool,
+    #[serde(default)]
     pub side_margin: usize,
     #[serde(default)]
     pub vertical_margin: usize,
@@ -177,6 +179,7 @@ struct PopupSpecDraft {
     on_close: Option<PopupCommandHookDraft>,
     on_hide: Option<PopupCommandHookDraft>,
     toggle_close_behavior: Option<String>,
+    preserve_on_cwd_change: Option<String>,
     side_margin: Option<String>,
     vertical_margin: Option<String>,
     invalid: bool,
@@ -647,6 +650,7 @@ fn build_configured_spec(
             None => defaults.on_hide.clone(),
         },
         toggle_close_behavior: parse_toggle_close_behavior(draft.toggle_close_behavior)?,
+        preserve_on_cwd_change: parse_bool(draft.preserve_on_cwd_change, false)?,
         side_margin: parse_margin(draft.side_margin, defaults.side_margin)?,
         vertical_margin: parse_margin(draft.vertical_margin, defaults.vertical_margin)?,
     })
@@ -841,6 +845,7 @@ fn apply_config_field(draft: &mut PopupSpecDraft, field: PopupConfigField, value
         PopupConfigField::CommandMarker => draft.command_marker = Some(value),
         PopupConfigField::Cwd => draft.cwd = Some(value),
         PopupConfigField::ToggleCloseBehavior => draft.toggle_close_behavior = Some(value),
+        PopupConfigField::PreserveOnCwdChange => draft.preserve_on_cwd_change = Some(value),
         PopupConfigField::SideMargin => draft.side_margin = Some(value),
         PopupConfigField::VerticalMargin => draft.vertical_margin = Some(value),
         PopupConfigField::Arg(index) => {
@@ -919,6 +924,7 @@ enum PopupConfigField {
     CommandMarker,
     Cwd,
     ToggleCloseBehavior,
+    PreserveOnCwdChange,
     SideMargin,
     VerticalMargin,
     Arg(usize),
@@ -946,6 +952,8 @@ fn popup_config_field(key: &str) -> Option<PopupConfigField> {
         Some(PopupConfigField::Cwd)
     } else if key == "toggle_close_behavior" {
         Some(PopupConfigField::ToggleCloseBehavior)
+    } else if key == "preserve_on_cwd_change" {
+        Some(PopupConfigField::PreserveOnCwdChange)
     } else if key == "side_margin" {
         Some(PopupConfigField::SideMargin)
     } else if key == "vertical_margin" {
@@ -1377,13 +1385,14 @@ mod tests {
     }
 
     #[test]
-    fn configured_spec_parses_toggle_close_behavior() {
+    fn configured_spec_parses_keep_alive_behavior() {
         let specs = ConfiguredPopupSpecs::from_configuration(&config(&[(
             "popups",
             r#"
                 btm {
                     command "btm"
                     toggle_close_behavior "hide"
+                    preserve_on_cwd_change true
                 }
             "#,
         )]));
@@ -1396,6 +1405,7 @@ mod tests {
             request.spec.toggle_close_behavior,
             TransientPopupToggleCloseBehavior::Hide
         );
+        assert!(request.spec.preserve_on_cwd_change);
     }
 
     #[test]
@@ -1638,7 +1648,8 @@ mod tests {
                 "on_hide": {
                     "command": ["hook", "hide"]
                 },
-                "toggle_close_behavior": "hide"
+                "toggle_close_behavior": "hide",
+                "preserve_on_cwd_change": true
             }
         }"#;
 
@@ -1652,6 +1663,7 @@ mod tests {
             request.spec.toggle_close_behavior,
             TransientPopupToggleCloseBehavior::Hide
         );
+        assert!(request.spec.preserve_on_cwd_change);
         assert_eq!(
             request
                 .spec
