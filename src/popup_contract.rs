@@ -9,6 +9,7 @@ const DEFAULT_SPEC_ID: &str = "default";
 const DEFAULT_POPUP_CONFIG_KEY: &str = "popup";
 const POPUP_DEFAULTS_CONFIG_KEY: &str = "popup_defaults";
 const NAMED_POPUPS_CONFIG_KEY: &str = "popups";
+const LEFT_MARGIN_PANE_TITLE_CONFIG_KEY: &str = "left_margin_pane_title";
 const DEFAULT_SIDE_MARGIN: usize = 0;
 const DEFAULT_VERTICAL_MARGIN: usize = 0;
 
@@ -54,6 +55,8 @@ pub struct TransientPopupSpec {
     #[serde(default)]
     pub side_margin: usize,
     #[serde(default)]
+    pub left_margin: Option<usize>,
+    #[serde(default)]
     pub vertical_margin: usize,
 }
 
@@ -80,6 +83,7 @@ pub struct TransientPopupPipeRequest {
 pub struct ConfiguredPopupSpecs {
     specs: BTreeMap<String, TransientPopupSpec>,
     invalid_spec_ids: BTreeSet<String>,
+    left_margin_pane_title: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -142,6 +146,7 @@ pub enum TransientTogglePlan<Id> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TransientPaneGeometry {
     pub side_margin: usize,
+    pub left_margin: Option<usize>,
     pub vertical_margin: usize,
 }
 
@@ -181,6 +186,7 @@ struct PopupSpecDraft {
     toggle_close_behavior: Option<String>,
     preserve_on_cwd_change: Option<String>,
     side_margin: Option<String>,
+    left_margin: Option<String>,
     vertical_margin: Option<String>,
     invalid: bool,
 }
@@ -196,6 +202,7 @@ struct PopupCommandHookDraft {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PopupSpecDefaults {
     side_margin: usize,
+    left_margin: Option<usize>,
     vertical_margin: usize,
     on_close: Option<TransientPopupCommandHook>,
     on_hide: Option<TransientPopupCommandHook>,
@@ -206,6 +213,7 @@ impl Default for PopupSpecDefaults {
     fn default() -> Self {
         Self {
             side_margin: DEFAULT_SIDE_MARGIN,
+            left_margin: None,
             vertical_margin: DEFAULT_VERTICAL_MARGIN,
             on_close: None,
             on_hide: None,
@@ -265,7 +273,15 @@ impl ConfiguredPopupSpecs {
         Self {
             specs,
             invalid_spec_ids,
+            left_margin_pane_title: configuration
+                .get(LEFT_MARGIN_PANE_TITLE_CONFIG_KEY)
+                .map(|title| title.trim().to_string())
+                .filter(|title| !title.is_empty()),
         }
+    }
+
+    pub fn left_margin_pane_title(&self) -> Option<&str> {
+        self.left_margin_pane_title.as_deref()
     }
 
     pub fn request_from_message(
@@ -385,6 +401,7 @@ impl TransientPopupSpec {
     pub fn geometry(&self) -> TransientPaneGeometry {
         TransientPaneGeometry {
             side_margin: self.side_margin,
+            left_margin: self.left_margin,
             vertical_margin: self.vertical_margin,
         }
     }
@@ -652,6 +669,10 @@ fn build_configured_spec(
         toggle_close_behavior: parse_toggle_close_behavior(draft.toggle_close_behavior)?,
         preserve_on_cwd_change: parse_bool(draft.preserve_on_cwd_change, false)?,
         side_margin: parse_margin(draft.side_margin, defaults.side_margin)?,
+        left_margin: match draft.left_margin {
+            Some(value) => Some(value.trim().parse().ok()?),
+            None => defaults.left_margin,
+        },
         vertical_margin: parse_margin(draft.vertical_margin, defaults.vertical_margin)?,
     })
 }
@@ -744,6 +765,10 @@ fn parse_popup_defaults(raw: &str) -> PopupSpecDefaults {
             "side_margin" => match parse_margin(Some(value), DEFAULT_SIDE_MARGIN) {
                 Some(side_margin) => defaults.side_margin = side_margin,
                 None => defaults.invalid = true,
+            },
+            "left_margin" => match value.trim().parse() {
+                Ok(left_margin) => defaults.left_margin = Some(left_margin),
+                Err(_) => defaults.invalid = true,
             },
             "vertical_margin" => match parse_margin(Some(value), DEFAULT_VERTICAL_MARGIN) {
                 Some(vertical_margin) => defaults.vertical_margin = vertical_margin,
@@ -847,6 +872,7 @@ fn apply_config_field(draft: &mut PopupSpecDraft, field: PopupConfigField, value
         PopupConfigField::ToggleCloseBehavior => draft.toggle_close_behavior = Some(value),
         PopupConfigField::PreserveOnCwdChange => draft.preserve_on_cwd_change = Some(value),
         PopupConfigField::SideMargin => draft.side_margin = Some(value),
+        PopupConfigField::LeftMargin => draft.left_margin = Some(value),
         PopupConfigField::VerticalMargin => draft.vertical_margin = Some(value),
         PopupConfigField::Arg(index) => {
             if index == 0 {
@@ -926,6 +952,7 @@ enum PopupConfigField {
     ToggleCloseBehavior,
     PreserveOnCwdChange,
     SideMargin,
+    LeftMargin,
     VerticalMargin,
     Arg(usize),
 }
@@ -956,6 +983,8 @@ fn popup_config_field(key: &str) -> Option<PopupConfigField> {
         Some(PopupConfigField::PreserveOnCwdChange)
     } else if key == "side_margin" {
         Some(PopupConfigField::SideMargin)
+    } else if key == "left_margin" {
+        Some(PopupConfigField::LeftMargin)
     } else if key == "vertical_margin" {
         Some(PopupConfigField::VerticalMargin)
     } else {
@@ -1077,6 +1106,7 @@ mod tests {
             request.spec.geometry(),
             TransientPaneGeometry {
                 side_margin: 2,
+                left_margin: None,
                 vertical_margin: 1,
             }
         );
@@ -1100,10 +1130,12 @@ mod tests {
     // Defends: plugin-level geometry defaults apply to configured popup specs.
     fn popup_defaults_apply_margins_to_named_popups() {
         let specs = ConfiguredPopupSpecs::from_configuration(&config(&[
+            ("left_margin_pane_title", " sidebar "),
             (
                 "popup_defaults",
                 r#"
                     side_margin 1
+                    left_margin 33
                     vertical_margin 0
                 "#,
             ),
@@ -1120,6 +1152,8 @@ mod tests {
             ),
         ]));
 
+        assert_eq!(specs.left_margin_pane_title(), Some("sidebar"));
+
         for popup_id in ["gitui", "lazygit"] {
             let request = specs
                 .request_from_message("toggle", Some(popup_id))
@@ -1129,6 +1163,7 @@ mod tests {
                 request.spec.geometry(),
                 TransientPaneGeometry {
                     side_margin: 1,
+                    left_margin: Some(33),
                     vertical_margin: 0,
                 }
             );
@@ -1143,6 +1178,7 @@ mod tests {
                 "popup_defaults",
                 r#"
                     side_margin 1
+                    left_margin 21
                     vertical_margin 0
                 "#,
             ),
@@ -1152,6 +1188,7 @@ mod tests {
                     gitui {
                         command "gitui"
                         side_margin 3
+                        left_margin 33
                         vertical_margin 2
                     }
                 "#,
@@ -1166,6 +1203,7 @@ mod tests {
             request.spec.geometry(),
             TransientPaneGeometry {
                 side_margin: 3,
+                left_margin: Some(33),
                 vertical_margin: 2,
             }
         );
@@ -1553,6 +1591,7 @@ mod tests {
         assert_eq!(request.spec.id, "lazygit");
         assert_eq!(request.spec.pane_title, "lazygit_popup");
         assert_eq!(request.spec.side_margin, 0);
+        assert_eq!(request.spec.left_margin, None);
         assert_eq!(request.spec.vertical_margin, 0);
     }
 

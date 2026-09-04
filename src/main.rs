@@ -2,14 +2,15 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use yazelix_zellij_popup::{
-    floating_coordinates,
+    effective_geometry, floating_coordinates, left_margin_is_active,
     popup_contract::{
         resolve_transient_toggle_plan_by_identity, select_transient_pane_by_identity,
         should_restart_popup_for_cwd, ConfiguredPopupSpecs, PopupMessageRequestError,
-        TransientPaneSnapshot, TransientPopupAction, TransientPopupCommandHook,
-        TransientPopupPipeRequest, TransientPopupToggleCloseBehavior, TransientTogglePlan,
+        TransientPaneGeometry, TransientPaneSnapshot, TransientPopupAction,
+        TransientPopupCommandHook, TransientPopupPipeRequest, TransientPopupToggleCloseBehavior,
+        TransientTogglePlan,
     },
-    PopupViewport,
+    LeftMarginPaneSnapshot, PopupViewport,
 };
 use zellij_tile::prelude::*;
 
@@ -31,6 +32,8 @@ struct State {
     active_tab: Option<ActiveTab>,
     terminal_panes_by_tab: HashMap<usize, Vec<TerminalPane>>,
     popup_launch_cwds: HashMap<PaneId, String>,
+    popup_geometries: HashMap<PaneId, TransientPaneGeometry>,
+    left_margin_active_by_tab: HashMap<usize, bool>,
     initial_cwd: PathBuf,
     permissions_granted: bool,
     popup_specs: ConfiguredPopupSpecs,
@@ -71,6 +74,7 @@ impl ZellijPlugin for State {
         subscribe(&[
             EventType::TabUpdate,
             EventType::PaneUpdate,
+            EventType::PaneClosed,
             EventType::PermissionRequestResult,
             EventType::PluginConfigurationChanged,
         ]);
@@ -89,13 +93,25 @@ impl ZellijPlugin for State {
                 });
             }
             Event::PaneUpdate(pane_manifest) => {
+                let previous_left_margin_active = self
+                    .active_tab
+                    .and_then(|tab| self.left_margin_active_by_tab.get(&tab.position).copied());
                 self.terminal_panes_by_tab = build_terminal_panes_by_tab(&pane_manifest);
-                self.popup_launch_cwds.retain(|pane_id, _| {
-                    self.terminal_panes_by_tab
-                        .values()
-                        .flatten()
-                        .any(|pane| pane.pane_id == *pane_id)
+                self.left_margin_active_by_tab = build_left_margin_active_by_tab(
+                    &pane_manifest,
+                    self.popup_specs.left_margin_pane_title(),
+                );
+                let left_margin_changed = self.active_tab.is_some_and(|tab| {
+                    previous_left_margin_active
+                        != self.left_margin_active_by_tab.get(&tab.position).copied()
                 });
+                if left_margin_changed {
+                    self.reflow_visible_popups();
+                }
+            }
+            Event::PaneClosed(pane_id) => {
+                self.popup_launch_cwds.remove(&pane_id);
+                self.popup_geometries.remove(&pane_id);
             }
             Event::PermissionRequestResult(status) => {
                 self.permissions_granted = status == PermissionStatus::Granted;
@@ -366,12 +382,13 @@ impl State {
         };
         let pane_id = open_command_pane_floating(
             command_to_run,
-            floating_coordinates(launch_plan.geometry, viewport),
+            floating_coordinates(self.effective_geometry(launch_plan.geometry), viewport),
             BTreeMap::new(),
         );
 
         if let Some(pane_id) = pane_id {
             self.popup_launch_cwds.insert(pane_id, launch_cwd);
+            self.popup_geometries.insert(pane_id, launch_plan.geometry);
             let pane_title = if request.spec.preserve_terminal_title {
                 ""
             } else {
@@ -418,7 +435,10 @@ impl State {
         }
 
         show_pane_with_id(pane_id, true, true);
-        if let Some(coordinates) = floating_coordinates(request.spec.geometry(), viewport) {
+        let geometry = request.spec.geometry();
+        self.popup_geometries.insert(pane_id, geometry);
+        if let Some(coordinates) = floating_coordinates(self.effective_geometry(geometry), viewport)
+        {
             change_floating_panes_coordinates(vec![(pane_id, coordinates)]);
         }
         self.respond(pipe_message, RESULT_FOCUSED);
@@ -453,6 +473,7 @@ impl State {
             match candidate.toggle_close_behavior {
                 TransientPopupToggleCloseBehavior::Close => {
                     self.popup_launch_cwds.remove(&candidate.pane_id);
+                    self.popup_geometries.remove(&candidate.pane_id);
                     close_pane_with_id(candidate.pane_id);
                     run_command_hook(candidate.on_close, fallback_cwd);
                 }
@@ -481,7 +502,42 @@ impl State {
 
     fn close_popup_pane(&mut self, pane_id: PaneId) {
         self.popup_launch_cwds.remove(&pane_id);
+        self.popup_geometries.remove(&pane_id);
         close_pane_with_id(pane_id);
+    }
+
+    fn effective_geometry(&self, geometry: TransientPaneGeometry) -> TransientPaneGeometry {
+        let active = self.active_tab.is_some_and(|tab| {
+            self.left_margin_active_by_tab
+                .get(&tab.position)
+                .copied()
+                .unwrap_or(false)
+        });
+        effective_geometry(
+            geometry,
+            self.popup_specs.left_margin_pane_title().is_none() || active,
+        )
+    }
+
+    fn reflow_visible_popups(&self) {
+        let Some(active_tab) = self.active_tab else {
+            return;
+        };
+        let Some(panes) = self.terminal_panes_by_tab.get(&active_tab.position) else {
+            return;
+        };
+        let coordinates = panes
+            .iter()
+            .filter(|pane| pane.is_floating && !pane.is_suppressed)
+            .filter_map(|pane| {
+                let geometry = self.popup_geometries.get(&pane.pane_id)?;
+                floating_coordinates(self.effective_geometry(*geometry), active_tab.viewport)
+                    .map(|coordinates| (pane.pane_id, coordinates))
+            })
+            .collect::<Vec<_>>();
+        if !coordinates.is_empty() {
+            change_floating_panes_coordinates(coordinates);
+        }
     }
 
     fn hide_popup(
@@ -540,6 +596,29 @@ fn build_terminal_panes_by_tab(pane_manifest: &PaneManifest) -> HashMap<usize, V
                 })
                 .collect();
             (*tab_position, terminal_panes)
+        })
+        .collect()
+}
+
+fn build_left_margin_active_by_tab(
+    pane_manifest: &PaneManifest,
+    pane_title: Option<&str>,
+) -> HashMap<usize, bool> {
+    pane_manifest
+        .panes
+        .iter()
+        .map(|(tab_position, panes)| {
+            let snapshots = panes
+                .iter()
+                .map(|pane| LeftMarginPaneSnapshot {
+                    title: pane.title.as_str(),
+                    exited: pane.exited,
+                    is_floating: pane.is_floating,
+                    is_suppressed: pane.is_suppressed,
+                    columns: pane.pane_columns,
+                })
+                .collect::<Vec<_>>();
+            (*tab_position, left_margin_is_active(&snapshots, pane_title))
         })
         .collect()
 }

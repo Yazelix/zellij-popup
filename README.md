@@ -48,8 +48,11 @@ Add the plugin and a popup spec to your Zellij config:
 ```kdl
 plugins {
     yzpp location="file:/path/to/yzpp.wasm" {
+        left_margin_pane_title "sidebar"
+
         popup_defaults {
             side_margin 1
+            left_margin 33
             vertical_margin 0
         }
 
@@ -117,6 +120,7 @@ Optional:
 - `toggle_close_behavior`, either `close` or `hide`, defaulting to `close`
 - `preserve_on_cwd_change`, defaulting to `false`; when `true`, showing or focusing a live popup skips cwd-based replacement
 - `side_margin`, the exact terminal-cell inset from each horizontal edge, defaulting to `popup_defaults.side_margin` or `0`
+- `left_margin`, an optional left-edge override, defaulting to `popup_defaults.left_margin`; the right edge continues to use `side_margin`
 - `vertical_margin`, the exact terminal-cell inset from each vertical edge, defaulting to `popup_defaults.vertical_margin` or `0`
 
 In `yzpp`, a margin is empty space outside the popup pane, between the viewport
@@ -124,14 +128,19 @@ edge and the popup border. It is not padding between the popup border and the
 application content. Margins define the popup size from the current viewport:
 a side margin of `2` uses two terminal cells on both the left and right, while a
 vertical margin of `1` uses one row above and below. Zero margins fill the
-viewport. Oversized margins are clamped so at least one row and column remain
-visible. Commands are argv, not shell strings.
+viewport. Set `left_margin` when a popup should leave a wider rail visible on
+that edge without wasting the same width on the right. Set the plugin-wide
+`left_margin_pane_title` to apply that override only while a matching tiled pane
+is visibly open; visible popups resize when the pane opens or closes. Oversized
+margins are clamped so at least one row and column remain visible. Commands are
+argv, not shell strings.
 
 Use `popup_defaults` to share margins and lifecycle hooks across configured popups:
 
 ```kdl
 popup_defaults {
     side_margin 1
+    left_margin 33
     vertical_margin 0
 
     on_close {
@@ -158,7 +167,9 @@ popups {
 }
 ```
 
-Per-popup `side_margin`, `vertical_margin`, `on_close`, and `on_hide` override the shared defaults.
+Per-popup `side_margin`, `left_margin`, `vertical_margin`, `on_close`, and
+`on_hide` override the shared defaults. Without either a shared or per-popup
+`left_margin`, `side_margin` remains symmetric.
 
 Hooks are also argv, not shell strings:
 
