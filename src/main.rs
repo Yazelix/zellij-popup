@@ -83,7 +83,7 @@ impl ZellijPlugin for State {
     fn update(&mut self, event: Event) -> bool {
         match event {
             Event::TabUpdate(tabs) => {
-                let previous_viewport = self.active_tab.map(|tab| (tab.position, tab.viewport));
+                let previous_tab = self.active_tab;
                 self.active_tab = tabs.iter().find(|tab| tab.active).map(|tab| ActiveTab {
                     position: tab.position,
                     viewport: PopupViewport {
@@ -92,7 +92,7 @@ impl ZellijPlugin for State {
                     },
                     floating_panes_visible: tab.are_floating_panes_visible,
                 });
-                if self.active_tab.map(|tab| (tab.position, tab.viewport)) != previous_viewport {
+                if self.active_tab != previous_tab {
                     self.reflow_visible_popups();
                 }
             }

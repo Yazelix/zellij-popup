@@ -138,6 +138,8 @@ argv, not shell strings.
 Visible popups also resize when the usable viewport changes, including when a
 bottom status bar hides or returns. Native viewport dimensions exclude UI bars;
 reflow preserves configured margins, the running process, and keyboard focus.
+Showing the floating layer again also applies the current viewport and sidebar
+margins to managed popups.
 
 Use `popup_defaults` to share margins and lifecycle hooks across configured popups:
 
