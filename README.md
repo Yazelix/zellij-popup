@@ -135,6 +135,10 @@ is visibly open; visible popups resize when the pane opens or closes. Oversized
 margins are clamped so at least one row and column remain visible. Commands are
 argv, not shell strings.
 
+Visible popups also resize when the usable viewport changes, including when a
+bottom status bar hides or returns. Native viewport dimensions exclude UI bars;
+reflow preserves configured margins, the running process, and keyboard focus.
+
 Use `popup_defaults` to share margins and lifecycle hooks across configured popups:
 
 ```kdl
