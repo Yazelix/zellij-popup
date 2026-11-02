@@ -1,7 +1,37 @@
 pub mod popup_contract;
 
+use std::collections::VecDeque;
+
 use popup_contract::TransientPaneGeometry;
-use zellij_tile::prelude::FloatingPaneCoordinates;
+use zellij_tile::prelude::{FloatingPaneCoordinates, PipeSource};
+
+const MAX_TRACKED_CLI_PIPES: usize = 128;
+
+#[derive(Default)]
+pub struct CliPipeTracker {
+    payload_pipe_ids: VecDeque<String>,
+}
+
+impl CliPipeTracker {
+    pub fn should_ignore(&mut self, source: &PipeSource, payload: Option<&str>) -> bool {
+        let PipeSource::Cli(pipe_id) = source else {
+            return false;
+        };
+        let previous = self.payload_pipe_ids.iter().position(|id| id == pipe_id);
+        if let Some(position) = previous {
+            self.payload_pipe_ids.remove(position);
+        }
+        if payload.is_none() {
+            return previous.is_some();
+        }
+
+        if self.payload_pipe_ids.len() == MAX_TRACKED_CLI_PIPES {
+            self.payload_pipe_ids.pop_front();
+        }
+        self.payload_pipe_ids.push_back(pipe_id.clone());
+        false
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PopupViewport {
@@ -87,6 +117,72 @@ fn bounded_margin(margin: usize, size: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cli_pipe_payload_trailer_is_ignored() {
+        let mut tracker = CliPipeTracker::default();
+        let source = PipeSource::Cli("pipe".to_string());
+
+        assert!(!tracker.should_ignore(&source, Some("gitui")));
+        assert!(!tracker.should_ignore(&source, Some("stdin chunk")));
+        assert!(tracker.should_ignore(&source, None));
+    }
+
+    #[test]
+    fn fresh_cli_pipe_without_payload_is_not_ignored() {
+        let mut tracker = CliPipeTracker::default();
+        let source = PipeSource::Cli("pipe".to_string());
+
+        assert!(!tracker.should_ignore(&source, None));
+    }
+
+    #[test]
+    fn cli_pipe_payload_does_not_affect_another_id() {
+        let mut tracker = CliPipeTracker::default();
+        let source = PipeSource::Cli("pipe".to_string());
+        let other_source = PipeSource::Cli("other".to_string());
+
+        assert!(!tracker.should_ignore(&source, Some("gitui")));
+        assert!(!tracker.should_ignore(&other_source, None));
+        assert!(tracker.should_ignore(&source, None));
+    }
+
+    #[test]
+    fn cli_pipe_tracking_is_bounded() {
+        let mut tracker = CliPipeTracker::default();
+
+        for id in 0..=MAX_TRACKED_CLI_PIPES {
+            let source = PipeSource::Cli(id.to_string());
+            assert!(!tracker.should_ignore(&source, Some("gitui")));
+            assert!(tracker.payload_pipe_ids.len() <= MAX_TRACKED_CLI_PIPES);
+        }
+
+        assert!(!tracker.should_ignore(&PipeSource::Cli("0".to_string()), None));
+        assert!(tracker.should_ignore(&PipeSource::Cli(MAX_TRACKED_CLI_PIPES.to_string()), None));
+    }
+
+    #[test]
+    fn cli_pipe_id_is_forgotten_after_trailer() {
+        let mut tracker = CliPipeTracker::default();
+        let source = PipeSource::Cli("pipe".to_string());
+
+        assert!(!tracker.should_ignore(&source, Some("")));
+        assert!(tracker.should_ignore(&source, None));
+        assert!(!tracker.should_ignore(&source, None));
+    }
+
+    #[test]
+    fn non_cli_pipe_sources_are_unchanged() {
+        let mut tracker = CliPipeTracker::default();
+        let cli_source = PipeSource::Cli("pipe".to_string());
+
+        assert!(!tracker.should_ignore(&cli_source, Some("gitui")));
+        for source in [PipeSource::Keybind, PipeSource::Plugin(1)] {
+            assert!(!tracker.should_ignore(&source, Some("gitui")));
+            assert!(!tracker.should_ignore(&source, None));
+        }
+        assert!(tracker.should_ignore(&cli_source, None));
+    }
 
     #[test]
     fn conditional_left_margin_tracks_visible_tiled_pane_width() {

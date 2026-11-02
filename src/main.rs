@@ -10,7 +10,7 @@ use yazelix_zellij_popup::{
         TransientPopupCommandHook, TransientPopupPipeRequest, TransientPopupToggleCloseBehavior,
         TransientTogglePlan,
     },
-    LeftMarginPaneSnapshot, PopupViewport,
+    CliPipeTracker, LeftMarginPaneSnapshot, PopupViewport,
 };
 use zellij_tile::prelude::*;
 
@@ -37,6 +37,7 @@ struct State {
     initial_cwd: PathBuf,
     permissions_granted: bool,
     popup_specs: ConfiguredPopupSpecs,
+    cli_pipe_tracker: CliPipeTracker,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,6 +131,14 @@ impl ZellijPlugin for State {
     }
 
     fn pipe(&mut self, pipe_message: PipeMessage) -> bool {
+        // Zellij sends a payload-less EOF message after streaming CLI input.
+        if self
+            .cli_pipe_tracker
+            .should_ignore(&pipe_message.source, pipe_message.payload.as_deref())
+        {
+            return false;
+        }
+
         let request = match self
             .popup_specs
             .request_from_message(&pipe_message.name, pipe_message.payload.as_deref())
