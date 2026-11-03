@@ -1747,6 +1747,7 @@ mod tests {
         let request = specs
             .request_from_message("toggle", Some("gitui"))
             .expect("request");
+        // "other" stands for a pane Zellij never renamed; the default command marker finds it.
         let focused = [transient_pane(11, "other", Some("gitui"), true)];
         let unfocused = [transient_pane(12, "other", Some("gitui"), false)];
         let suppressed = [suppressed_transient_pane(13, "other", Some("gitui"))];
