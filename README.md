@@ -120,12 +120,14 @@ Optional:
 - `toggle_close_behavior`, either `close` or `hide`, defaulting to `close`
 - `preserve_on_cwd_change`, defaulting to `false`; when `true`, showing or focusing a live popup skips cwd-based replacement
 - `side_margin`, the exact terminal-cell inset from each horizontal edge, defaulting to `popup_defaults.side_margin` or `0`
-- `left_margin`, an optional left-edge override, defaulting to `popup_defaults.left_margin`; the right edge continues to use `side_margin`
+- `left_margin`, an optional left-edge override counted from the tab's left edge, defaulting to `popup_defaults.left_margin`; the right edge continues to use `side_margin`
 - `vertical_margin`, the exact terminal-cell inset from each vertical edge, defaulting to `popup_defaults.vertical_margin` or `0`
 
-In `yzpp`, a margin is empty space outside the popup pane, between the viewport
-edge and the popup border. It is not padding between the popup border and the
-application content. Margins define the popup size from the current viewport:
+In `yzpp`, a margin is empty space outside the popup pane, between the tab edge
+and the popup border. It is not padding between the popup border and the
+application content. Horizontal margins are measured from the tab's left and
+right edges, so a non-selectable edge pane that Zellij removes from the viewport
+does not change popup width; vertical margins are measured from the viewport:
 a side margin of `2` uses two terminal cells on both the left and right, while a
 vertical margin of `1` uses one row above and below. Zero margins fill the
 viewport. Set `left_margin` when a popup should leave a wider rail visible on

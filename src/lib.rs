@@ -3,7 +3,7 @@ pub mod popup_contract;
 use std::collections::VecDeque;
 
 use popup_contract::TransientPaneGeometry;
-use zellij_tile::prelude::{FloatingPaneCoordinates, PipeSource};
+use zellij_tile::prelude::{FloatingPaneCoordinates, PipeSource, TabInfo};
 
 const MAX_TRACKED_CLI_PIPES: usize = 128;
 
@@ -37,6 +37,18 @@ impl CliPipeTracker {
 pub struct PopupViewport {
     pub columns: usize,
     pub rows: usize,
+}
+
+impl PopupViewport {
+    // Floating x is absolute, and Zellij drops passive full-height edge panes from the
+    // viewport, so columns come from the display area: a passive left rail must not narrow
+    // popups. A passive right-edge pane would cost the right margin; Nova has none.
+    pub fn from_tab(tab: &TabInfo) -> Self {
+        Self {
+            columns: tab.display_area_columns,
+            rows: tab.viewport_rows,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,5 +353,40 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn passive_rail_outside_the_viewport_does_not_narrow_popups() {
+        let tab = TabInfo {
+            viewport_columns: 48,
+            viewport_rows: 24,
+            display_area_columns: 80,
+            ..Default::default()
+        };
+        let coordinates = |left_margin| {
+            floating_coordinates(
+                TransientPaneGeometry {
+                    side_margin: 1,
+                    left_margin,
+                    vertical_margin: 0,
+                },
+                PopupViewport::from_tab(&tab),
+            )
+            .unwrap()
+        };
+        let expected = |x: &str, width: &str| {
+            FloatingPaneCoordinates::new(
+                Some(x.to_string()),
+                Some("1".to_string()),
+                Some(width.to_string()),
+                Some("24".to_string()),
+                None,
+                None,
+            )
+            .unwrap()
+        };
+
+        assert_eq!(coordinates(Some(33)), expected("33", "46"));
+        assert_eq!(coordinates(None), expected("1", "78"));
     }
 }

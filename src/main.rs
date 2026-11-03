@@ -87,10 +87,7 @@ impl ZellijPlugin for State {
                 let previous_tab = self.active_tab;
                 self.active_tab = tabs.iter().find(|tab| tab.active).map(|tab| ActiveTab {
                     position: tab.position,
-                    viewport: PopupViewport {
-                        columns: tab.viewport_columns,
-                        rows: tab.viewport_rows,
-                    },
+                    viewport: PopupViewport::from_tab(tab),
                     floating_panes_visible: tab.are_floating_panes_visible,
                 });
                 if self.active_tab != previous_tab {
