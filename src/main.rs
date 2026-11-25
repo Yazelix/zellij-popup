@@ -62,22 +62,21 @@ register_plugin!(State);
 
 impl ZellijPlugin for State {
     fn load(&mut self, configuration: BTreeMap<String, String>) {
-        set_selectable(false);
         self.initial_cwd = get_plugin_ids().initial_cwd;
         self.popup_specs = ConfiguredPopupSpecs::from_configuration(&configuration);
-        request_permission(&[
-            PermissionType::ReadApplicationState,
-            PermissionType::ChangeApplicationState,
-            PermissionType::OpenTerminalsOrPlugins,
-            PermissionType::RunCommands,
-            PermissionType::ReadCliPipes,
-        ]);
         subscribe(&[
             EventType::TabUpdate,
             EventType::PaneUpdate,
             EventType::PaneClosed,
             EventType::PermissionRequestResult,
             EventType::PluginConfigurationChanged,
+        ]);
+        request_permission(&[
+            PermissionType::ReadApplicationState,
+            PermissionType::ChangeApplicationState,
+            PermissionType::OpenTerminalsOrPlugins,
+            PermissionType::RunCommands,
+            PermissionType::ReadCliPipes,
         ]);
     }
 
@@ -117,6 +116,8 @@ impl ZellijPlugin for State {
             }
             Event::PermissionRequestResult(status) => {
                 self.permissions_granted = status == PermissionStatus::Granted;
+                hide_self();
+                set_selectable(false);
             }
             Event::PluginConfigurationChanged(configuration) => {
                 self.popup_specs = ConfiguredPopupSpecs::from_configuration(&configuration);
